@@ -49,7 +49,6 @@ function Section({ label, labelClass, todos, selected, onToggle, onToggleAll }: 
   if (!todos.length) return null
   const allSelected = todos.every(t => selected.has(t.id))
 
-  // Group by todolist within each date section
   const groups: { [key: string]: Todo[] } = {}
   for (const todo of todos) {
     const key = todo.parent?.title || todo.bucket?.name || 'Other'
@@ -58,32 +57,30 @@ function Section({ label, labelClass, todos, selected, onToggle, onToggleAll }: 
   }
 
   return (
-    <div className="flex gap-8 mb-8">
+    <div className="flex gap-6">
       {/* Left: date label */}
-      <div className="w-28 flex-shrink-0 pt-0.5 text-right">
-        <h2 className={`text-xs font-bold tracking-wide ${labelClass || 'text-gray-500'}`}>{label}</h2>
+      <div className="w-24 flex-shrink-0 text-right pt-3">
+        <div className={`text-xs font-bold tracking-wide leading-tight ${labelClass || 'text-gray-600'}`}>
+          {label}
+        </div>
         <button
           onClick={() => onToggleAll(todos)}
           className="text-xs text-gray-300 hover:text-gray-500 transition-colors mt-1"
         >
-          {allSelected ? 'Deselect all' : 'Select all'}
+          {allSelected ? 'Deselect' : 'Select all'}
         </button>
       </div>
 
-      {/* Right: grouped by todolist */}
-      <div className="flex-1 min-w-0">
+      {/* Right: content with top border as section divider */}
+      <div className="flex-1 min-w-0 border-t border-gray-200 pt-3 pb-5">
         {Object.entries(groups).map(([groupName, groupTodos]) => (
-          <div key={groupName} className="mb-4">
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5 truncate">
+          <div key={groupName} className="mb-3">
+            <div className="text-xs font-semibold text-orange-700 uppercase tracking-wider mb-1 px-2">
               {groupName}
             </div>
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-              {groupTodos.map(todo => (
-                <div key={todo.id} className="border-b border-gray-50 last:border-b-0">
-                  <AssignmentItem todo={todo} selected={selected.has(todo.id)} onToggle={onToggle} />
-                </div>
-              ))}
-            </div>
+            {groupTodos.map(todo => (
+              <AssignmentItem key={todo.id} todo={todo} selected={selected.has(todo.id)} onToggle={onToggle} />
+            ))}
           </div>
         ))}
       </div>
@@ -174,6 +171,7 @@ export default function AssignmentsClient() {
   }
 
   const { overdue, today: todayTodos, upcoming, nodates } = groupByDate(todos)
+
   const tabs: { key: Tab; label: string }[] = [
     { key: 'all', label: 'My assignments' },
     { key: 'dates', label: 'My assignments with dates' },
@@ -182,19 +180,31 @@ export default function AssignmentsClient() {
 
   return (
     <div className="relative">
-      {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
+      {/* Tabs — underline style */}
+      <div className="flex border-b border-gray-300 mb-8">
         {tabs.map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              tab === t.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            className={`px-4 py-2.5 text-sm font-medium transition-colors -mb-px ${
+              tab === t.key
+                ? 'border-b-2 border-gray-900 text-gray-900'
+                : 'text-gray-500 hover:text-gray-700 border-b-2 border-transparent'
             }`}
           >
             {t.label}
           </button>
         ))}
+
+        {/* Global select all — pushed to the right */}
+        {!loading && todos.length > 0 && (
+          <button
+            onClick={() => toggleAll(todos)}
+            className="ml-auto text-xs text-gray-400 hover:text-gray-600 transition-colors pb-2"
+          >
+            {todos.every(t => selected.has(t.id)) ? 'Deselect all' : 'Select all'}
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -211,27 +221,35 @@ export default function AssignmentsClient() {
         <div className="text-center py-20 text-gray-400">No assignments found.</div>
       ) : (
         <>
-          <div className="flex justify-end mb-4">
-            <button
-              onClick={() => toggleAll(todos)}
-              className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              {todos.every(t => selected.has(t.id)) ? 'Deselect all' : 'Select all'}
-            </button>
-          </div>
+          {/* Overdue heading */}
           {Object.keys(overdue).length > 0 && (
-            <>
-              <div className="text-sm font-bold text-red-500 mb-4 ml-36">Overdue</div>
-              {Object.entries(overdue).sort(([a], [b]) => a.localeCompare(b)).map(([date, items]) => (
-                <Section key={date} label={formatDate(date)} labelClass="text-red-400" todos={items} selected={selected} onToggle={toggleTodo} onToggleAll={toggleAll} />
-              ))}
-            </>
+            <div className="flex gap-6 mb-0">
+              <div className="w-24 flex-shrink-0" />
+              <div className="flex-1 border-t border-gray-200 pt-3 pb-2">
+                <span className="text-sm font-bold text-red-600">Overdue</span>
+              </div>
+            </div>
           )}
-          <Section label="Due today" todos={todayTodos} selected={selected} onToggle={toggleTodo} onToggleAll={toggleAll} />
+          {Object.entries(overdue).sort(([a], [b]) => a.localeCompare(b)).map(([date, items]) => (
+            <Section key={date} label={formatDate(date)} labelClass="text-red-500" todos={items} selected={selected} onToggle={toggleTodo} onToggleAll={toggleAll} />
+          ))}
+
+          {/* Due today heading */}
+          {todayTodos.length > 0 && (
+            <div className="flex gap-6 mb-0">
+              <div className="w-24 flex-shrink-0" />
+              <div className="flex-1 border-t border-gray-200 pt-3 pb-2">
+                <span className="text-sm font-bold text-gray-800">Due today</span>
+              </div>
+            </div>
+          )}
+          <Section label="Today" todos={todayTodos} selected={selected} onToggle={toggleTodo} onToggleAll={toggleAll} />
+
           {Object.entries(upcoming).sort(([a], [b]) => a.localeCompare(b)).map(([date, items]) => (
             <Section key={date} label={formatDate(date)} todos={items} selected={selected} onToggle={toggleTodo} onToggleAll={toggleAll} />
           ))}
-          <Section label="No due date" todos={nodates} selected={selected} onToggle={toggleTodo} onToggleAll={toggleAll} />
+
+          <Section label="No date" todos={nodates} selected={selected} onToggle={toggleTodo} onToggleAll={toggleAll} />
         </>
       )}
 
