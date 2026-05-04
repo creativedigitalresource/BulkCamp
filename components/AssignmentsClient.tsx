@@ -9,7 +9,7 @@ type Tab = 'all' | 'dates' | 'assigned'
 
 function groupByDate(todos: Todo[]) {
   const today = new Date().toISOString().split('T')[0]
-  const overdue: Todo[] = []
+  const overdue: { [date: string]: Todo[] } = {}
   const todayItems: Todo[] = []
   const upcoming: { [date: string]: Todo[] } = {}
   const nodates: Todo[] = []
@@ -18,7 +18,8 @@ function groupByDate(todos: Todo[]) {
     if (!todo.due_on) {
       nodates.push(todo)
     } else if (todo.due_on < today) {
-      overdue.push(todo)
+      if (!overdue[todo.due_on]) overdue[todo.due_on] = []
+      overdue[todo.due_on].push(todo)
     } else if (todo.due_on === today) {
       todayItems.push(todo)
     } else {
@@ -172,7 +173,7 @@ export default function AssignmentsClient() {
     }
   }
 
-  const { overdue, today, upcoming, nodates } = groupByDate(todos)
+  const { overdue, today: todayTodos, upcoming, nodates } = groupByDate(todos)
   const tabs: { key: Tab; label: string }[] = [
     { key: 'all', label: 'My assignments' },
     { key: 'dates', label: 'My assignments with dates' },
@@ -218,8 +219,15 @@ export default function AssignmentsClient() {
               {todos.every(t => selected.has(t.id)) ? 'Deselect all' : 'Select all'}
             </button>
           </div>
-          <Section label="Overdue" labelClass="text-red-500" todos={overdue} selected={selected} onToggle={toggleTodo} onToggleAll={toggleAll} />
-          <Section label="Due today" todos={today} selected={selected} onToggle={toggleTodo} onToggleAll={toggleAll} />
+          {Object.keys(overdue).length > 0 && (
+            <>
+              <div className="text-sm font-bold text-red-500 mb-4 ml-36">Overdue</div>
+              {Object.entries(overdue).sort(([a], [b]) => a.localeCompare(b)).map(([date, items]) => (
+                <Section key={date} label={formatDate(date)} labelClass="text-red-400" todos={items} selected={selected} onToggle={toggleTodo} onToggleAll={toggleAll} />
+              ))}
+            </>
+          )}
+          <Section label="Due today" todos={todayTodos} selected={selected} onToggle={toggleTodo} onToggleAll={toggleAll} />
           {Object.entries(upcoming).sort(([a], [b]) => a.localeCompare(b)).map(([date, items]) => (
             <Section key={date} label={formatDate(date)} todos={items} selected={selected} onToggle={toggleTodo} onToggleAll={toggleAll} />
           ))}
