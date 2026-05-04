@@ -41,11 +41,13 @@ interface SectionProps {
   labelClass?: string
   todos: Todo[]
   selected: Set<number>
+  priorities: Set<number>
   onToggle: (todo: Todo) => void
   onToggleAll: (todos: Todo[]) => void
+  onTogglePriority: (todo: Todo) => void
 }
 
-function Section({ label, labelClass, todos, selected, onToggle, onToggleAll }: SectionProps) {
+function Section({ label, labelClass, todos, selected, priorities, onToggle, onToggleAll, onTogglePriority }: SectionProps) {
   if (!todos.length) return null
   const allSelected = todos.every(t => selected.has(t.id))
 
@@ -58,7 +60,6 @@ function Section({ label, labelClass, todos, selected, onToggle, onToggleAll }: 
 
   return (
     <div className="flex gap-6">
-      {/* Left: date label */}
       <div className="w-24 flex-shrink-0 text-right pt-3">
         <div className={`text-xs font-bold tracking-wide leading-tight ${labelClass || 'text-gray-600'}`}>
           {label}
@@ -71,7 +72,6 @@ function Section({ label, labelClass, todos, selected, onToggle, onToggleAll }: 
         </button>
       </div>
 
-      {/* Right: content with top border as section divider */}
       <div className="flex-1 min-w-0 border-t border-gray-200 pt-3 pb-5">
         {Object.entries(groups).map(([groupName, groupTodos]) => (
           <div key={groupName} className="mb-3">
@@ -79,7 +79,14 @@ function Section({ label, labelClass, todos, selected, onToggle, onToggleAll }: 
               {groupName}
             </div>
             {groupTodos.map(todo => (
-              <AssignmentItem key={todo.id} todo={todo} selected={selected.has(todo.id)} onToggle={onToggle} />
+              <AssignmentItem
+                key={todo.id}
+                todo={todo}
+                selected={selected.has(todo.id)}
+                onToggle={onToggle}
+                isPriority={priorities.has(todo.id)}
+                onTogglePriority={onTogglePriority}
+              />
             ))}
           </div>
         ))}
@@ -96,6 +103,15 @@ export default function AssignmentsClient() {
   const [bulkLoading, setBulkLoading] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [notes, setNotes] = useState('')
+  const [priorities, setPriorities] = useState<Set<number>>(new Set())
+
+  // Load persisted data from localStorage
+  useEffect(() => {
+    setNotes(localStorage.getItem('bc-notes') || '')
+    const saved = localStorage.getItem('bc-priorities')
+    if (saved) setPriorities(new Set(JSON.parse(saved)))
+  }, [])
 
   const fetchTodos = useCallback(async (t: Tab) => {
     setLoading(true)
@@ -142,6 +158,21 @@ export default function AssignmentsClient() {
     })
   }
 
+  const togglePriority = (todo: Todo) => {
+    setPriorities(prev => {
+      const next = new Set(prev)
+      if (next.has(todo.id)) next.delete(todo.id)
+      else next.add(todo.id)
+      localStorage.setItem('bc-priorities', JSON.stringify([...next]))
+      return next
+    })
+  }
+
+  const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNotes(e.target.value)
+    localStorage.setItem('bc-notes', e.target.value)
+  }
+
   const showToast = (msg: string) => {
     setToast(msg)
     setTimeout(() => setToast(null), 3000)
@@ -170,6 +201,7 @@ export default function AssignmentsClient() {
     }
   }
 
+  const priorityTodos = todos.filter(t => priorities.has(t.id))
   const { overdue, today: todayTodos, upcoming, nodates } = groupByDate(todos)
 
   const tabs: { key: Tab; label: string }[] = [
@@ -180,7 +212,51 @@ export default function AssignmentsClient() {
 
   return (
     <div className="relative">
-      {/* Tabs — underline style */}
+
+      {/* ── Notepad ── */}
+      <div className="mb-6 pb-6 border-b border-gray-100">
+        <div className="flex items-center gap-2 mb-2">
+          <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Quick notes</span>
+        </div>
+        <textarea
+          value={notes}
+          onChange={handleNotesChange}
+          placeholder="Jot something down…"
+          className="w-full text-sm text-gray-700 placeholder-gray-300 bg-transparent resize-none focus:outline-none leading-relaxed"
+          rows={3}
+        />
+      </div>
+
+      {/* ── Priorities ── */}
+      <div className="mb-6 pb-6 border-b border-gray-100">
+        <div className="flex items-center gap-2 mb-3">
+          <svg className="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+          </svg>
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">My priorities today</span>
+        </div>
+        {priorityTodos.length === 0 ? (
+          <p className="text-sm text-gray-300 pl-1">Star an assignment below to pin it here.</p>
+        ) : (
+          <div>
+            {priorityTodos.map(todo => (
+              <AssignmentItem
+                key={todo.id}
+                todo={todo}
+                selected={selected.has(todo.id)}
+                onToggle={toggleTodo}
+                isPriority={true}
+                onTogglePriority={togglePriority}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Tabs ── */}
       <div className="flex border-b border-gray-300 mb-8">
         {tabs.map(t => (
           <button
@@ -195,8 +271,6 @@ export default function AssignmentsClient() {
             {t.label}
           </button>
         ))}
-
-        {/* Global select all — pushed to the right */}
         {!loading && todos.length > 0 && (
           <button
             onClick={() => toggleAll(todos)}
@@ -207,6 +281,7 @@ export default function AssignmentsClient() {
         )}
       </div>
 
+      {/* ── Assignments list ── */}
       {loading ? (
         <div className="flex items-center justify-center py-20 text-gray-400">
           <svg className="w-5 h-5 animate-spin mr-2" fill="none" viewBox="0 0 24 24">
@@ -221,7 +296,6 @@ export default function AssignmentsClient() {
         <div className="text-center py-20 text-gray-400">No assignments found.</div>
       ) : (
         <>
-          {/* Overdue heading */}
           {Object.keys(overdue).length > 0 && (
             <div className="flex gap-6 mb-0">
               <div className="w-24 flex-shrink-0" />
@@ -231,10 +305,9 @@ export default function AssignmentsClient() {
             </div>
           )}
           {Object.entries(overdue).sort(([a], [b]) => a.localeCompare(b)).map(([date, items]) => (
-            <Section key={date} label={formatDate(date)} labelClass="text-red-500" todos={items} selected={selected} onToggle={toggleTodo} onToggleAll={toggleAll} />
+            <Section key={date} label={formatDate(date)} labelClass="text-red-500" todos={items} selected={selected} priorities={priorities} onToggle={toggleTodo} onToggleAll={toggleAll} onTogglePriority={togglePriority} />
           ))}
 
-          {/* Due today heading */}
           {todayTodos.length > 0 && (
             <div className="flex gap-6 mb-0">
               <div className="w-24 flex-shrink-0" />
@@ -243,13 +316,13 @@ export default function AssignmentsClient() {
               </div>
             </div>
           )}
-          <Section label="Today" todos={todayTodos} selected={selected} onToggle={toggleTodo} onToggleAll={toggleAll} />
+          <Section label="Today" todos={todayTodos} selected={selected} priorities={priorities} onToggle={toggleTodo} onToggleAll={toggleAll} onTogglePriority={togglePriority} />
 
           {Object.entries(upcoming).sort(([a], [b]) => a.localeCompare(b)).map(([date, items]) => (
-            <Section key={date} label={formatDate(date)} todos={items} selected={selected} onToggle={toggleTodo} onToggleAll={toggleAll} />
+            <Section key={date} label={formatDate(date)} todos={items} selected={selected} priorities={priorities} onToggle={toggleTodo} onToggleAll={toggleAll} onTogglePriority={togglePriority} />
           ))}
 
-          <Section label="No date" todos={nodates} selected={selected} onToggle={toggleTodo} onToggleAll={toggleAll} />
+          <Section label="No date" todos={nodates} selected={selected} priorities={priorities} onToggle={toggleTodo} onToggleAll={toggleAll} onTogglePriority={togglePriority} />
         </>
       )}
 
