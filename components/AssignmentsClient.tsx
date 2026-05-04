@@ -48,21 +48,41 @@ function Section({ label, labelClass, todos, selected, onToggle, onToggleAll }: 
   if (!todos.length) return null
   const allSelected = todos.every(t => selected.has(t.id))
 
+  // Group by todolist within each date section
+  const groups: { [key: string]: Todo[] } = {}
+  for (const todo of todos) {
+    const key = todo.parent?.title || todo.bucket?.name || 'Other'
+    if (!groups[key]) groups[key] = []
+    groups[key].push(todo)
+  }
+
   return (
-    <div className="mb-6">
-      <div className="flex items-center justify-between mb-1">
-        <h2 className={`text-sm font-semibold ${labelClass || 'text-gray-700'}`}>{label}</h2>
+    <div className="flex gap-8 mb-8">
+      {/* Left: date label */}
+      <div className="w-28 flex-shrink-0 pt-0.5 text-right">
+        <h2 className={`text-xs font-bold tracking-wide ${labelClass || 'text-gray-500'}`}>{label}</h2>
         <button
           onClick={() => onToggleAll(todos)}
-          className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          className="text-xs text-gray-300 hover:text-gray-500 transition-colors mt-1"
         >
           {allSelected ? 'Deselect all' : 'Select all'}
         </button>
       </div>
-      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-        {todos.map(todo => (
-          <div key={todo.id} className="border-b border-gray-50 last:border-b-0">
-            <AssignmentItem todo={todo} selected={selected.has(todo.id)} onToggle={onToggle} />
+
+      {/* Right: grouped by todolist */}
+      <div className="flex-1 min-w-0">
+        {Object.entries(groups).map(([groupName, groupTodos]) => (
+          <div key={groupName} className="mb-4">
+            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5 truncate">
+              {groupName}
+            </div>
+            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              {groupTodos.map(todo => (
+                <div key={todo.id} className="border-b border-gray-50 last:border-b-0">
+                  <AssignmentItem todo={todo} selected={selected.has(todo.id)} onToggle={onToggle} />
+                </div>
+              ))}
+            </div>
           </div>
         ))}
       </div>
