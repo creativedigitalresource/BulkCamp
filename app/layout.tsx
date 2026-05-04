@@ -14,7 +14,16 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Basecamp Assignments",
-  description: "Bulk manage your Basecamp todos",
+  description: "Bulk manage your Basecamp assignments",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "BC Assignments",
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
 };
 
 export default function RootLayout({

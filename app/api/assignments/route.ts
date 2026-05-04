@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
   const accountId = session.activeAccountId
   const token = session.token.access_token
 
+  console.log('[assignments] fetching tab:', tab, 'accountId:', accountId)
   try {
     let todos
     if (tab === 'dates') {
@@ -21,8 +22,10 @@ export async function GET(req: NextRequest) {
     } else {
       todos = await getAssignments(accountId, token)
     }
+    console.log('[assignments] fetched', todos.length, 'todos')
     return NextResponse.json({ todos })
-  } catch {
+  } catch (err) {
+    console.error('[assignments] error:', err)
     return NextResponse.json({ error: 'Failed to fetch' }, { status: 500 })
   }
 }

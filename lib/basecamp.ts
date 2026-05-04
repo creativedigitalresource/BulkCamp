@@ -54,15 +54,23 @@ export async function getIdentityAndAccounts(token: string): Promise<{
 }
 
 async function bcFetch(url: string, token: string, options?: RequestInit) {
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'User-Agent': USER_AGENT,
-      'Content-Type': 'application/json',
-      ...(options?.headers || {}),
-    },
-  })
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 10000)
+  let res: Response
+  try {
+    res = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'User-Agent': USER_AGENT,
+        'Content-Type': 'application/json',
+        ...(options?.headers || {}),
+      },
+    })
+  } finally {
+    clearTimeout(timeout)
+  }
   if (res.status === 429) {
     const retryAfter = parseInt(res.headers.get('Retry-After') || '2', 10)
     await new Promise(r => setTimeout(r, retryAfter * 1000))
@@ -72,12 +80,24 @@ async function bcFetch(url: string, token: string, options?: RequestInit) {
 }
 
 export async function getAssignments(accountId: number, token: string): Promise<Todo[]> {
-  const res = await bcFetch(`${BC_API}/${accountId}/assignments.json`, token)
-  if (!res.ok) return []
-  const data = await res.json()
-  // assignments returns { non_priorities, priorities }
-  const all = [...(data.priorities || []), ...(data.non_priorities || [])]
-  return all
+  const endpoints = [
+    `${BC_API}/${accountId}/my/assignments.json`,
+    `${BC_API}/${accountId}/assignments.json`,
+  ]
+  for (const url of endpoints) {
+    const res = await bcFetch(url, token)
+    if (!res.ok) {
+      console.error('[getAssignments] failed:', url, res.status)
+      continue
+    }
+    const data = await res.json()
+    console.log('[getAssignments] success:', url, Array.isArray(data) ? data.length + ' items' : 'object keys: ' + Object.keys(data).join(', '))
+    const all = Array.isArray(data)
+      ? data
+      : [...(data.priorities || []), ...(data.non_priorities || [])]
+    return all
+  }
+  return []
 }
 
 export async function getAssignmentsWithDates(accountId: number, token: string): Promise<Todo[]> {
@@ -100,12 +120,26 @@ export async function updateTodoDueDate(
   title: string,
   dueOn: string
 ): Promise<boolean> {
+  // Fetch current todo to preserve assignees and other fields
+  const current = await bcFetch(
+    `${BC_API}/${accountId}/buckets/${bucketId}/todos/${todoId}.json`,
+    token
+  )
+  if (!current.ok) return false
+  const todo = await current.json()
+
+  const assigneeIds = (todo.assignees || []).map((a: { id: number }) => a.id)
+
   const res = await bcFetch(
     `${BC_API}/${accountId}/buckets/${bucketId}/todos/${todoId}.json`,
     token,
     {
       method: 'PUT',
-      body: JSON.stringify({ content: title, due_on: dueOn }),
+      body: JSON.stringify({
+        content: title,
+        due_on: dueOn,
+        assignee_ids: assigneeIds,
+      }),
     }
   )
   return res.ok

@@ -77,14 +77,25 @@ export default function AssignmentsClient() {
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [bulkLoading, setBulkLoading] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const fetchTodos = useCallback(async (t: Tab) => {
     setLoading(true)
     setSelected(new Set())
+    setError(null)
     try {
-      const res = await fetch(`/api/assignments?tab=${t}`)
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 15000)
+      const res = await fetch(`/api/assignments?tab=${t}`, { signal: controller.signal })
+      clearTimeout(timeout)
+      if (!res.ok) {
+        setError(`API error: ${res.status} ${res.statusText}`)
+        return
+      }
       const data = await res.json()
       setTodos(data.todos || [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load assignments')
     } finally {
       setLoading(false)
     }
@@ -173,10 +184,20 @@ export default function AssignmentsClient() {
           </svg>
           Loading assignments…
         </div>
+      ) : error ? (
+        <div className="text-center py-20 text-red-500">{error}</div>
       ) : todos.length === 0 ? (
         <div className="text-center py-20 text-gray-400">No assignments found.</div>
       ) : (
         <>
+          <div className="flex justify-end mb-4">
+            <button
+              onClick={() => toggleAll(todos)}
+              className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              {todos.every(t => selected.has(t.id)) ? 'Deselect all' : 'Select all'}
+            </button>
+          </div>
           <Section label="Overdue" labelClass="text-red-500" todos={overdue} selected={selected} onToggle={toggleTodo} onToggleAll={toggleAll} />
           <Section label="Due today" todos={today} selected={selected} onToggle={toggleTodo} onToggleAll={toggleAll} />
           {Object.entries(upcoming).sort(([a], [b]) => a.localeCompare(b)).map(([date, items]) => (
