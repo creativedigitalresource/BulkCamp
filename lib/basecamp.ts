@@ -86,12 +86,8 @@ export async function getAssignments(accountId: number, token: string): Promise<
   ]
   for (const url of endpoints) {
     const res = await bcFetch(url, token)
-    if (!res.ok) {
-      console.error('[getAssignments] failed:', url, res.status)
-      continue
-    }
+    if (!res.ok) continue
     const data = await res.json()
-    console.log('[getAssignments] success:', url, Array.isArray(data) ? data.length + ' items' : 'object keys: ' + Object.keys(data).join(', '))
     const all = Array.isArray(data)
       ? data
       : [...(data.priorities || []), ...(data.non_priorities || [])]
