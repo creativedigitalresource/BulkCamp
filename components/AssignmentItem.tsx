@@ -8,9 +8,10 @@ interface Props {
   onToggle: (todo: Todo) => void
   isPriority?: boolean
   onTogglePriority?: (todo: Todo) => void
+  isNew?: boolean
 }
 
-export default function AssignmentItem({ todo, selected, onToggle, isPriority, onTogglePriority }: Props) {
+export default function AssignmentItem({ todo, selected, onToggle, isPriority, onTogglePriority, isNew }: Props) {
   return (
     <div
       className={`flex items-start gap-3 py-1.5 px-2 cursor-pointer rounded transition-colors ${
@@ -33,6 +34,11 @@ export default function AssignmentItem({ todo, selected, onToggle, isPriority, o
 
       <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
         <span className="text-sm text-gray-900 leading-snug">{todo.title || todo.content}</span>
+        {isNew && (
+          <span className="text-[10px] font-bold text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
+            NEW
+          </span>
+        )}
         {todo.assignees?.map(a => (
           <span key={a.id} className="flex items-center gap-1 flex-shrink-0">
             <img src={a.avatar_url} alt={a.name} title={a.name} className="w-5 h-5 rounded-full" />

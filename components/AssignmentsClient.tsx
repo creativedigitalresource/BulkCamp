@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Todo } from '@/lib/types'
 import AssignmentItem from './AssignmentItem'
 import BulkActionBar from './BulkActionBar'
@@ -42,12 +42,13 @@ interface SectionProps {
   todos: Todo[]
   selected: Set<number>
   priorities: Set<number>
+  newIds: Set<number>
   onToggle: (todo: Todo) => void
   onToggleAll: (todos: Todo[]) => void
   onTogglePriority: (todo: Todo) => void
 }
 
-function Section({ label, labelClass, todos, selected, priorities, onToggle, onToggleAll, onTogglePriority }: SectionProps) {
+function Section({ label, labelClass, todos, selected, priorities, newIds, onToggle, onToggleAll, onTogglePriority }: SectionProps) {
   if (!todos.length) return null
   const allSelected = todos.every(t => selected.has(t.id))
 
@@ -86,6 +87,7 @@ function Section({ label, labelClass, todos, selected, priorities, onToggle, onT
                 onToggle={onToggle}
                 isPriority={priorities.has(todo.id)}
                 onTogglePriority={onTogglePriority}
+                isNew={newIds.has(todo.id)}
               />
             ))}
           </div>
@@ -105,12 +107,21 @@ export default function AssignmentsClient() {
   const [error, setError] = useState<string | null>(null)
   const [notes, setNotes] = useState('')
   const [priorities, setPriorities] = useState<Set<number>>(new Set())
+  const [seenIds, setSeenIds] = useState<Set<number>>(new Set())
+  const [mounted, setMounted] = useState(false)
+  const seededRef = useRef(false)
 
-  // Load persisted data from localStorage
+  // Load all localStorage state after mount (avoids SSR mismatch)
   useEffect(() => {
     setNotes(localStorage.getItem('bc-notes') || '')
-    const saved = localStorage.getItem('bc-priorities')
-    if (saved) setPriorities(new Set(JSON.parse(saved)))
+
+    const savedPriorities = localStorage.getItem('bc-priorities')
+    if (savedPriorities) setPriorities(new Set(JSON.parse(savedPriorities)))
+
+    const savedSeen = localStorage.getItem('bc-seen-ids')
+    if (savedSeen) setSeenIds(new Set(JSON.parse(savedSeen)))
+
+    setMounted(true)
   }, [])
 
   const fetchTodos = useCallback(async (t: Tab) => {
@@ -139,6 +150,17 @@ export default function AssignmentsClient() {
     fetchTodos(tab)
   }, [tab, fetchTodos])
 
+  // On first-ever load: seed seenIds with all current todos so nothing shows as new
+  useEffect(() => {
+    if (!mounted || loading || todos.length === 0 || seededRef.current) return
+    seededRef.current = true
+    if (!localStorage.getItem('bc-seen-ids')) {
+      const allIds = todos.map(t => t.id)
+      localStorage.setItem('bc-seen-ids', JSON.stringify(allIds))
+      setSeenIds(new Set(allIds))
+    }
+  }, [mounted, loading, todos])
+
   const toggleTodo = (todo: Todo) => {
     setSelected(prev => {
       const next = new Set(prev)
@@ -166,6 +188,12 @@ export default function AssignmentsClient() {
       localStorage.setItem('bc-priorities', JSON.stringify([...next]))
       return next
     })
+  }
+
+  const markAllSeen = () => {
+    const next = new Set([...seenIds, ...todos.map(t => t.id)])
+    setSeenIds(next)
+    localStorage.setItem('bc-seen-ids', JSON.stringify([...next]))
   }
 
   const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -201,6 +229,8 @@ export default function AssignmentsClient() {
     }
   }
 
+  const newTodos = mounted ? todos.filter(t => !seenIds.has(t.id)) : []
+  const newIds = new Set(newTodos.map(t => t.id))
   const priorityTodos = todos.filter(t => priorities.has(t.id))
   const { overdue, today: todayTodos, upcoming, nodates } = groupByDate(todos)
 
@@ -212,6 +242,38 @@ export default function AssignmentsClient() {
 
   return (
     <div className="relative">
+
+      {/* ── New assignments ── */}
+      {newTodos.length > 0 && (
+        <div className="mb-6 pb-6 border-b border-gray-100">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">New</span>
+              <span className="text-xs font-bold text-white bg-blue-500 rounded-full px-1.5 py-0.5 leading-none">
+                {newTodos.length}
+              </span>
+            </div>
+            <button
+              onClick={markAllSeen}
+              className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              Mark all seen
+            </button>
+          </div>
+          {newTodos.map(todo => (
+            <AssignmentItem
+              key={todo.id}
+              todo={todo}
+              selected={selected.has(todo.id)}
+              onToggle={toggleTodo}
+              isPriority={priorities.has(todo.id)}
+              onTogglePriority={togglePriority}
+              isNew
+            />
+          ))}
+        </div>
+      )}
 
       {/* ── Notepad ── */}
       <div className="mb-6 pb-6 border-b border-gray-100">
@@ -241,18 +303,17 @@ export default function AssignmentsClient() {
         {priorityTodos.length === 0 ? (
           <p className="text-sm text-gray-300 pl-1">Star an assignment below to pin it here.</p>
         ) : (
-          <div>
-            {priorityTodos.map(todo => (
-              <AssignmentItem
-                key={todo.id}
-                todo={todo}
-                selected={selected.has(todo.id)}
-                onToggle={toggleTodo}
-                isPriority={true}
-                onTogglePriority={togglePriority}
-              />
-            ))}
-          </div>
+          priorityTodos.map(todo => (
+            <AssignmentItem
+              key={todo.id}
+              todo={todo}
+              selected={selected.has(todo.id)}
+              onToggle={toggleTodo}
+              isPriority
+              onTogglePriority={togglePriority}
+              isNew={newIds.has(todo.id)}
+            />
+          ))
         )}
       </div>
 
@@ -305,7 +366,7 @@ export default function AssignmentsClient() {
             </div>
           )}
           {Object.entries(overdue).sort(([a], [b]) => a.localeCompare(b)).map(([date, items]) => (
-            <Section key={date} label={formatDate(date)} labelClass="text-red-500" todos={items} selected={selected} priorities={priorities} onToggle={toggleTodo} onToggleAll={toggleAll} onTogglePriority={togglePriority} />
+            <Section key={date} label={formatDate(date)} labelClass="text-red-500" todos={items} selected={selected} priorities={priorities} newIds={newIds} onToggle={toggleTodo} onToggleAll={toggleAll} onTogglePriority={togglePriority} />
           ))}
 
           {todayTodos.length > 0 && (
@@ -316,13 +377,13 @@ export default function AssignmentsClient() {
               </div>
             </div>
           )}
-          <Section label="Today" todos={todayTodos} selected={selected} priorities={priorities} onToggle={toggleTodo} onToggleAll={toggleAll} onTogglePriority={togglePriority} />
+          <Section label="Today" todos={todayTodos} selected={selected} priorities={priorities} newIds={newIds} onToggle={toggleTodo} onToggleAll={toggleAll} onTogglePriority={togglePriority} />
 
           {Object.entries(upcoming).sort(([a], [b]) => a.localeCompare(b)).map(([date, items]) => (
-            <Section key={date} label={formatDate(date)} todos={items} selected={selected} priorities={priorities} onToggle={toggleTodo} onToggleAll={toggleAll} onTogglePriority={togglePriority} />
+            <Section key={date} label={formatDate(date)} todos={items} selected={selected} priorities={priorities} newIds={newIds} onToggle={toggleTodo} onToggleAll={toggleAll} onTogglePriority={togglePriority} />
           ))}
 
-          <Section label="No date" todos={nodates} selected={selected} priorities={priorities} onToggle={toggleTodo} onToggleAll={toggleAll} onTogglePriority={togglePriority} />
+          <Section label="No date" todos={nodates} selected={selected} priorities={priorities} newIds={newIds} onToggle={toggleTodo} onToggleAll={toggleAll} onTogglePriority={togglePriority} />
         </>
       )}
 
