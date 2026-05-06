@@ -46,9 +46,10 @@ interface SectionProps {
   onToggle: (todo: Todo) => void
   onToggleAll: (todos: Todo[]) => void
   onTogglePriority: (todo: Todo) => void
+  onMarkSeen: (todo: Todo) => void
 }
 
-function Section({ label, labelClass, todos, selected, priorities, newIds, onToggle, onToggleAll, onTogglePriority }: SectionProps) {
+function Section({ label, labelClass, todos, selected, priorities, newIds, onToggle, onToggleAll, onTogglePriority, onMarkSeen }: SectionProps) {
   if (!todos.length) return null
   const allSelected = todos.every(t => selected.has(t.id))
 
@@ -88,6 +89,7 @@ function Section({ label, labelClass, todos, selected, priorities, newIds, onTog
                 isPriority={priorities.has(todo.id)}
                 onTogglePriority={onTogglePriority}
                 isNew={newIds.has(todo.id)}
+                onMarkSeen={onMarkSeen}
               />
             ))}
           </div>
@@ -196,6 +198,12 @@ export default function AssignmentsClient() {
     localStorage.setItem('bc-seen-ids', JSON.stringify([...next]))
   }
 
+  const markSeen = (todo: Todo) => {
+    const next = new Set([...seenIds, todo.id])
+    setSeenIds(next)
+    localStorage.setItem('bc-seen-ids', JSON.stringify([...next]))
+  }
+
   const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNotes(e.target.value)
     localStorage.setItem('bc-notes', e.target.value)
@@ -270,6 +278,7 @@ export default function AssignmentsClient() {
               isPriority={priorities.has(todo.id)}
               onTogglePriority={togglePriority}
               isNew
+              onMarkSeen={markSeen}
             />
           ))}
         </div>
@@ -312,6 +321,7 @@ export default function AssignmentsClient() {
               isPriority
               onTogglePriority={togglePriority}
               isNew={newIds.has(todo.id)}
+              onMarkSeen={markSeen}
             />
           ))
         )}
@@ -366,7 +376,7 @@ export default function AssignmentsClient() {
             </div>
           )}
           {Object.entries(overdue).sort(([a], [b]) => a.localeCompare(b)).map(([date, items]) => (
-            <Section key={date} label={formatDate(date)} labelClass="text-red-500" todos={items} selected={selected} priorities={priorities} newIds={newIds} onToggle={toggleTodo} onToggleAll={toggleAll} onTogglePriority={togglePriority} />
+            <Section key={date} label={formatDate(date)} labelClass="text-red-500" todos={items} selected={selected} priorities={priorities} newIds={newIds} onToggle={toggleTodo} onToggleAll={toggleAll} onTogglePriority={togglePriority} onMarkSeen={markSeen} />
           ))}
 
           {todayTodos.length > 0 && (
@@ -377,13 +387,13 @@ export default function AssignmentsClient() {
               </div>
             </div>
           )}
-          <Section label="Today" todos={todayTodos} selected={selected} priorities={priorities} newIds={newIds} onToggle={toggleTodo} onToggleAll={toggleAll} onTogglePriority={togglePriority} />
+          <Section label="Today" todos={todayTodos} selected={selected} priorities={priorities} newIds={newIds} onToggle={toggleTodo} onToggleAll={toggleAll} onTogglePriority={togglePriority} onMarkSeen={markSeen} />
 
           {Object.entries(upcoming).sort(([a], [b]) => a.localeCompare(b)).map(([date, items]) => (
-            <Section key={date} label={formatDate(date)} todos={items} selected={selected} priorities={priorities} newIds={newIds} onToggle={toggleTodo} onToggleAll={toggleAll} onTogglePriority={togglePriority} />
+            <Section key={date} label={formatDate(date)} todos={items} selected={selected} priorities={priorities} newIds={newIds} onToggle={toggleTodo} onToggleAll={toggleAll} onTogglePriority={togglePriority} onMarkSeen={markSeen} />
           ))}
 
-          <Section label="No date" todos={nodates} selected={selected} priorities={priorities} newIds={newIds} onToggle={toggleTodo} onToggleAll={toggleAll} onTogglePriority={togglePriority} />
+          <Section label="No date" todos={nodates} selected={selected} priorities={priorities} newIds={newIds} onToggle={toggleTodo} onToggleAll={toggleAll} onTogglePriority={togglePriority} onMarkSeen={markSeen} />
         </>
       )}
 

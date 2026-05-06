@@ -9,9 +9,10 @@ interface Props {
   isPriority?: boolean
   onTogglePriority?: (todo: Todo) => void
   isNew?: boolean
+  onMarkSeen?: (todo: Todo) => void
 }
 
-export default function AssignmentItem({ todo, selected, onToggle, isPriority, onTogglePriority, isNew }: Props) {
+export default function AssignmentItem({ todo, selected, onToggle, isPriority, onTogglePriority, isNew, onMarkSeen }: Props) {
   return (
     <div
       className={`flex items-start gap-3 py-1.5 px-2 cursor-pointer rounded transition-colors ${
@@ -50,6 +51,17 @@ export default function AssignmentItem({ todo, selected, onToggle, isPriority, o
       </div>
 
       <div className="flex items-center gap-2 flex-shrink-0 mt-0.5">
+        {isNew && onMarkSeen && (
+          <button
+            onClick={e => { e.stopPropagation(); onMarkSeen(todo) }}
+            title="Mark as seen"
+            className="text-blue-300 hover:text-blue-500 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </button>
+        )}
         {onTogglePriority && (
           <button
             onClick={e => { e.stopPropagation(); onTogglePriority(todo) }}
